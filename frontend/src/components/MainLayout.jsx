@@ -59,6 +59,11 @@ function MainLayout() {
           <Link to="/sales-history" style={activeMenuStyle('/sales-history')}>
             ประวัติการขายน้ำยาง
           </Link>
+
+          {/* เมนูกราฟสรุป DRC % */}
+          <Link to="/chart-dashboard" style={activeMenuStyle('/chart-dashboard')}>
+            %DRC Graph
+          </Link>
         </div>
 
         <div style={{ marginTop: 'auto', padding: '20px' }}>
@@ -80,7 +85,7 @@ function MainLayout() {
               gap: '8px'
             }}
           >
-            🚪 ออกจากระบบ
+            ออกจากระบบ
           </button>
         </div>
       </div>

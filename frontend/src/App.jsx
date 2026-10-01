@@ -9,6 +9,7 @@ import CustomerList from './pages/CustomerList';
 import AssignPlot from './pages/AssignPlot';
 import SalesHistory from './pages/SalesHistory';
 import WithdrawApproval from './pages/WithdrawApproval';
+import DrcChart from './pages/DrcChart';
 
 // Pages - เจ้าของสวน
 import GardenOwnerDashboard from './pages/GardenOwnerDashboard'; 
@@ -16,7 +17,7 @@ import GardenOwnerDashboard from './pages/GardenOwnerDashboard';
 // Pages - ลูกจ้าง (คนกรีดยาง)
 import EmployeeDashboard from './pages/EmployeeDashboard'; 
 
-// 📌 [เพิ่มใหม่] นำเข้าหน้าเปลี่ยนรหัสผ่าน
+// 📌 นำเข้าหน้าเปลี่ยนรหัสผ่าน
 import ChangePassword from './pages/ChangePassword';
 
 // Layouts
@@ -31,7 +32,7 @@ function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
 
-        {/* 📌 [จุดที่แก้ไข] เรียกใช้งานไฟล์ ChangePassword ที่เราเพิ่งสร้างแทนข้อความเดิม */}
+        {/* หน้าเปลี่ยนรหัสผ่าน */}
         <Route path="/change-password" element={<ChangePassword />} />
 
         {/* ---------------- กลุ่มหน้า: ผู้ดูแลระบบ (โรงรับซื้อ) ---------------- */}
@@ -42,6 +43,9 @@ function App() {
           <Route path="/add-garden-owner" element={<AddGardenOwner />} />
           <Route path="/sales-history" element={<SalesHistory />} />
           <Route path="/withdraw-approval" element={<WithdrawApproval />} />
+          
+          {/* 🎯 [เพิ่มบรรทัดนี้] Route สำหรับหน้ากราฟสรุป DRC % */}
+          <Route path="/chart-dashboard" element={<DrcChart />} />
         </Route>
 
         {/* ---------------- กลุ่มหน้า: เจ้าของสวน ---------------- */}

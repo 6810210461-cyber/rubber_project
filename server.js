@@ -11,7 +11,7 @@ const pool = new Pool({
     user: 'postgres', 
     host: 'localhost', 
     database: 'rubber_system', 
-    password: '1234', 
+    password: '01299438', 
     port: 5432 
 });
 
@@ -543,5 +543,27 @@ app.get('/api/employee-withdrawals/:empID', async (req, res) => {
     }
 });
 
+
+// 📊 API สำหรับดึงข้อมูลทำกราฟสรุป DRC % รายวัน
+app.get('/api/drc-summary', async (req, res) => {
+    try {
+        const queryText = `
+            SELECT 
+                TO_CHAR(dr.record_date, 'YYYY-MM-DD') AS record_date, 
+                ROUND(AVG(dr.drc), 2)::float AS avg_drc,
+                ROUND(SUM(dr.weight), 2)::float AS total_weight
+            FROM daily_records dr
+            GROUP BY dr.record_date
+            ORDER BY dr.record_date ASC
+            LIMIT 30
+        `;
+        
+        const { rows } = await pool.query(queryText);
+        res.json(rows);
+    } catch (err) {
+        console.error("Fetch DRC Summary Error:", err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
 // 🚀 11. Start Server
 app.listen(PORT, () => console.log(`🚀 เซิร์ฟเวอร์ทำงานเรียบร้อยที่: http://localhost:${PORT}`));
