@@ -12,7 +12,15 @@ function AddGardenOwner() {
   // 1. สร้างฟังก์ชันสำหรับดึงรหัสประจำตัวถัดไป
   const fetchNextId = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/next-owner-id');
+      // ดึง Token (บัตรผ่านทาง) ที่เก็บไว้ตอนล็อกอินออกมาเตรียมไว้
+      const token = localStorage.getItem('token');
+
+      const response = await fetch('http://localhost:3000/api/next-owner-id', {
+        // แนบ Token ไปกับ Headers เพื่อให้ระบบรู้ว่าเรามีสิทธิ์ดึงข้อมูลนี้
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       const data = await response.json();
       if (data.success) {
         // อัปเดตเฉพาะค่า username ใน formData
@@ -35,7 +43,7 @@ function AddGardenOwner() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // 📌 สร้างตัวแปร payload เพื่อแปลงชื่อให้ตรงกับที่ Backend (server.js) รอรับ
+      // สร้างตัวแปร payload เพื่อแปลงชื่อให้ตรงกับที่ Backend (server.js) รอรับ
       const payload = {
         username: formData.username,
         password: formData.password,
@@ -44,11 +52,18 @@ function AddGardenOwner() {
         phone: formData.phone
       };
 
+      // ดึง Token บัตรผ่านทางมาเตรียมไว้ เพื่อยืนยันว่าเราคือแอดมินที่ล็อกอินเข้ามาแล้วจริงๆ
+      const token = localStorage.getItem('token');
+
       // 3. ปรับ URL ให้ตรงกับ API ใน server.js (/api/add-garden-owner)
       const response = await fetch('http://localhost:3000/api/add-garden-owner', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload) // 📌 ส่ง payload ไปแทน formData
+        headers: { 
+          'Content-Type': 'application/json',
+          // แนบ Token ไปให้เซิร์ฟเวอร์ตรวจสอบยามหน้าประตู ถ้าไม่มีรหัสนี้จะบันทึกข้อมูลไม่ได้
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload) // ส่ง payload ไปแทน formData
       });
       const data = await response.json();
       

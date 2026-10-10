@@ -14,7 +14,12 @@ const AssignPlot = () => {
   });
 
   useEffect(() => {
-    fetch('http://localhost:3000/api/customers')
+    // 📌 ดึง Token สำหรับใช้ในการดึงข้อมูลเริ่มต้น
+    const token = localStorage.getItem('token');
+    
+    fetch('http://localhost:3000/api/customers', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
       .then(res => res.json())
       .then(data => setOwners(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error fetching owners:", err));
@@ -23,7 +28,11 @@ const AssignPlot = () => {
   }, []);
 
   const fetchAssignments = () => {
-    fetch('http://localhost:3000/api/assignments')
+    // 📌 แนบ Token ตอนดึงข้อมูลการผูกแปลง
+    const token = localStorage.getItem('token');
+    fetch('http://localhost:3000/api/assignments', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
       .then(res => res.json())
       .then(data => setAssignments(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error fetching assignments:", err));
@@ -34,10 +43,18 @@ const AssignPlot = () => {
     setFormData({ ...formData, gardenID, plotID: '', employeeID: '' });
 
     if (gardenID) {
-      fetch(`http://localhost:3000/api/plots/${gardenID}`)
+      // 📌 แนบ Token ตอนดึงแปลงยางและลูกจ้างตามรหัสเจ้าของสวน
+      const token = localStorage.getItem('token');
+      
+      fetch(`http://localhost:3000/api/plots/${gardenID}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
         .then(res => res.json())
         .then(data => setPlots(Array.isArray(data) ? data : []));
-      fetch(`http://localhost:3000/api/employees/${gardenID}`)
+        
+      fetch(`http://localhost:3000/api/employees/${gardenID}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
         .then(res => res.json())
         .then(data => setTappers(Array.isArray(data) ? data : []));
     } else {
@@ -58,9 +75,14 @@ const AssignPlot = () => {
       tapperShare: Number(tapperShare)
     };
 
+    // 📌 แนบ Token ตอนบันทึกข้อมูลการผูกแปลง
+    const token = localStorage.getItem('token');
     fetch('http://localhost:3000/api/assign-plot', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
       body: JSON.stringify(payload)
     })
     .then(res => res.json())
@@ -78,7 +100,12 @@ const AssignPlot = () => {
 
   const handleDelete = (id) => {
     if (window.confirm('คุณต้องการลบข้อมูลการผูกแปลงนี้ใช่หรือไม่?')) {
-      fetch(`http://localhost:3000/api/delete-assignment/${id}`, { method: 'DELETE' })
+      // 📌 แนบ Token ตอนสั่งลบ
+      const token = localStorage.getItem('token');
+      fetch(`http://localhost:3000/api/delete-assignment/${id}`, { 
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
         .then(res => res.json())
         .then(data => {
           if (data.success) {

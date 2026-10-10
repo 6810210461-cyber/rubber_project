@@ -6,17 +6,17 @@ const DailyRecord = () => {
   const [assignments, setAssignments] = useState([]);
   const [records, setRecords] = useState([]);
 
-  // ⭐ 1. State สำหรับเก็บวันที่ (ค่าเริ่มต้นคือวันนี้)
   const [recordDate, setRecordDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState('');
   const [selectedPlot, setSelectedPlot] = useState(null);
   const [weight, setWeight] = useState('');
   const [drc, setDrc] = useState('');
 
-  // ⭐ 2. แก้ไขฟังก์ชันดึงประวัติ ให้ดึงเฉพาะ "วันที่เลือก" เท่านั้น
   const fetchRecords = () => {
-    // ส่ง ?date=... ไปหา API เพื่อกรองข้อมูลจาก Backend
-    fetch(`http://localhost:3000/api/daily_records?date=${recordDate}`)
+    const token = localStorage.getItem('token'); // 📌 ดึง Token
+    fetch(`http://localhost:3000/api/daily_records?date=${recordDate}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setRecords(data);
@@ -26,7 +26,6 @@ const DailyRecord = () => {
         if (saved) {
           try {
             const parsed = JSON.parse(saved);
-            // กรองข้อมูลใน LocalStorage ให้ตรงกับวันที่เลือกเผื่อกรณีออฟไลน์
             const filtered = (Array.isArray(parsed) ? parsed : []).filter(item => 
               (item.record_date && item.record_date.startsWith(recordDate))
             );
@@ -38,9 +37,11 @@ const DailyRecord = () => {
       });
   };
 
-  // ดึงข้อมูลแปลงยางแค่ครั้งเดียวตอนเปิดหน้าเว็บ
   useEffect(() => {
-    fetch('http://localhost:3000/api/assignments')
+    const token = localStorage.getItem('token'); // 📌 ดึง Token
+    fetch('http://localhost:3000/api/assignments', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setAssignments(data);
@@ -51,12 +52,10 @@ const DailyRecord = () => {
       });
   }, []);
 
-  // ⭐ 3. ให้ดึงยอดสรุปใหม่ "ทุกครั้งที่ผู้ใช้กดเปลี่ยนวันที่ (recordDate)"
   useEffect(() => {
     fetchRecords();
   }, [recordDate]);
 
-  // ตัวเลขจะบวกกันเฉพาะรายการของ "วันที่เลือก" เท่านั้น เพราะเรากรองจาก fetchRecords แล้ว
   const totalExpense = records.reduce((sum, item) => sum + Number(item.total_amount || item.totalAmount || 0), 0);
   const totalWeight = records.reduce((sum, item) => sum + Number(item.weight || 0), 0);
 
@@ -107,15 +106,19 @@ const DailyRecord = () => {
     };
 
     try {
+      const token = localStorage.getItem('token'); // 📌 ดึง Token
       const response = await fetch('http://localhost:3000/api/daily_records', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
         body: JSON.stringify(payload)
       });
 
       if (response.ok) {
         alert(`บันทึกข้อมูลรับซื้อลงฐานข้อมูล PostgreSQL เรียบร้อยแล้ว!`);
-        fetchRecords(); // ดึงข้อมูลใหม่มาแสดงทันที
+        fetchRecords(); 
         setWeight('');
         setDrc('');
       } else {

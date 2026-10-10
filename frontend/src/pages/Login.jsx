@@ -20,9 +20,11 @@ function Login() {
             const data = await res.json();
 
             if (data.success) {
-                // บันทึกข้อมูลที่ใช้อ้างอิงลง LocalStorage
+                // 📌 บันทึกข้อมูลและ Token ที่ได้จากเซิร์ฟเวอร์ลง LocalStorage
+                if (data.token) localStorage.setItem('token', data.token); // <--- เพิ่มบรรทัดนี้เพื่อเก็บ Token
+                
                 localStorage.setItem('role', data.role);
-                localStorage.setItem('username', username.trim()); // บันทึกเบอร์/Username ที่พิมพ์เข้ามา
+                localStorage.setItem('username', username.trim());
                 if (data.empID) localStorage.setItem('empID', data.empID);
                 if (data.gardenID) localStorage.setItem('gardenID', data.gardenID);
 

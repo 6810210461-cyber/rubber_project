@@ -7,7 +7,7 @@ function EmployeeDashboard() {
     const [history, setHistory] = useState([]);
     const [assignments, setAssignments] = useState([]);
     const [withdrawAmount, setWithdrawAmount] = useState('');
-    const [withdrawalHistory, setWithdrawalHistory] = useState([]); // เก็บประวัติการเบิก
+    const [withdrawalHistory, setWithdrawalHistory] = useState([]);
     const [timeFilter, setTimeFilter] = useState('all'); 
     
     const empID = localStorage.getItem('empID');
@@ -20,26 +20,35 @@ function EmployeeDashboard() {
         }
         fetchAssignments();
         fetchHistory();
-        fetchWithdrawalHistory(); // โหลดประวัติเบิกเงินตอนเปิดหน้า
+        fetchWithdrawalHistory();
     }, [empID, navigate]);
 
     const fetchAssignments = async () => {
         try {
-            const res = await fetch(`http://localhost:3000/api/employee-assignments/${empID}`);
+            const token = localStorage.getItem('token'); // 📌 ดึง Token
+            const res = await fetch(`http://localhost:3000/api/employee-assignments/${empID}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             setAssignments(await res.json());
         } catch (error) { console.error(error); }
     };
 
     const fetchHistory = async () => {
         try {
-            const res = await fetch(`http://localhost:3000/api/employee-history/${empID}`);
+            const token = localStorage.getItem('token'); // 📌 ดึง Token
+            const res = await fetch(`http://localhost:3000/api/employee-history/${empID}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             setHistory(await res.json());
         } catch (error) { console.error(error); }
     };
 
     const fetchWithdrawalHistory = async () => {
         try {
-            const res = await fetch(`http://localhost:3000/api/employee-withdrawals/${empID}`);
+            const token = localStorage.getItem('token'); // 📌 ดึง Token
+            const res = await fetch(`http://localhost:3000/api/employee-withdrawals/${empID}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             setWithdrawalHistory(await res.json());
         } catch (error) { console.error(error); }
     };
@@ -51,16 +60,20 @@ function EmployeeDashboard() {
             return;
         }
         try {
+            const token = localStorage.getItem('token'); // 📌 ดึง Token
             const res = await fetch('http://localhost:3000/api/withdrawals', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({ empID, amount: parseFloat(withdrawAmount) })
             });
             const data = await res.json();
             if (data.success) {
                 alert('ส่งคำขอเบิกเงินเรียบร้อยแล้ว');
                 setWithdrawAmount('');
-                fetchWithdrawalHistory(); // โหลดตารางประวัติใหม่ทันทีที่ส่งคำขอสำเร็จ
+                fetchWithdrawalHistory();
             } else {
                 alert(data.message);
             }

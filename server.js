@@ -1,13 +1,17 @@
+require('dotenv').config(); // เรียกใช้งานระบบอ่านไฟล์รหัสลับ
 const express = require('express'); 
 const cors = require('cors'); 
-const path = require('path'); 
 const { Pool } = require('pg'); 
+const jwt = require('jsonwebtoken'); // ดึงเครื่องมือสร้างและตรวจ Token เข้ามาใช้งาน
 
 const app = express(); 
 const PORT = 3000; 
 
-// 2. ตั้งค่า Database
-// ส่วนนี้ใช้เชื่อมต่อกับฐานข้อมูล PostgreSQL ในเครื่อง (เป็นหัวใจหลักที่เก็บข้อมูลทุกอย่างของเจ้าของสวน แปลงยาง และลูกจ้าง)
+// รหัสลับสำหรับสร้างบัตรผ่านทาง (Token) ถ้าไม่มีไฟล์ .env ให้ใช้ข้อความด้านหลังแทน
+const JWT_SECRET = process.env.JWT_SECRET || 'rubber_factory_super_secret_key_2026';
+
+// ส่วนที่ 1: ตั้งค่า Database
+// ส่วนนี้ใช้เชื่อมต่อกับฐานข้อมูล PostgreSQL ในเครื่อง เป็นหัวใจหลักที่เก็บข้อมูลทุกอย่าง
 const pool = new Pool({ 
     user: 'postgres', 
     host: 'localhost', 
@@ -16,37 +20,43 @@ const pool = new Pool({
     port: 5432 
 });
 
-// 3. Middleware
-// ส่วนนี้ตั้งค่าให้ Server สามารถรับส่งข้อมูลข้ามโดเมนได้ (cors) และอ่านข้อมูลรูปแบบ JSON ได้
-app.use(cors()); 
+// ส่วนที่ 2: ตั้งค่าความปลอดภัยและข้อมูล (Middleware)
+// ล็อกเป้าให้อนุญาตเฉพาะหน้าเว็บ React ของเรา (พอร์ต 5173) เท่านั้นที่เข้ามาขอข้อมูลได้ คนอื่นยิงมาจะโดนเตะออก
+app.use(cors({
+    origin: 'http://localhost:5173',
+    credentials: true
+})); 
 app.use(express.urlencoded({ extended: true })); 
-app.use(express.json()); 
-app.use(express.static(__dirname)); 
+app.use(express.json()); // สั่งให้เซิร์ฟเวอร์อ่านข้อมูลที่ส่งมาเป็นแบบ JSON ได้
 
-// 4. Page Routing
-// ส่วนนี้จัดการเส้นทางหน้าเว็บ (สำหรับโปรเจกต์ที่เป็น HTML ธรรมดา)
-const pages = {
-    '/': 'login.html', 
-    '/owner': 'owner.html', 
-    '/daily-record': 'owner.html',
-    '/assign-plot': 'assignPlot.html', 
-    '/customer-list': 'customer.html',
-    '/addGardenOwner': 'addGardenOwner.html', 
-    
-    // 🟢 [เกี่ยวกับเจ้าของสวน]: เส้นทางเปิดหน้าเว็บ แดชบอร์ดสำหรับ "เจ้าของสวน" โดยเฉพาะ (gardenOwnerDashboard.html)
-    '/garden-owner-dashboard': 'gardenOwnerDashboard.html',
-    
-    '/daily-log': 'dailyLog.html',
-    '/employee-dashboard': 'EmployeeDashboard.html'
-};
-Object.keys(pages).forEach(route => app.get(route, (req, res) => res.sendFile(path.join(__dirname, pages[route]))));
+// ส่วนที่ 3: ด่านตรวจตั๋วผ่านทาง (Authentication Middleware)
+// ฟังก์ชันนี้ทำหน้าที่เหมือนยามเฝ้าประตู คอยตรวจว่าคนที่เรียกใช้ API มี Token (บัตรผ่าน) มาด้วยไหม
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // ดึงเอาเฉพาะรหัส Token ออกมา
 
-// 5. API Login (ระบบตรวจสิทธิ์การเข้าใช้งาน)
+    // ถ้าไม่มี Token แนบมาด้วย ให้เตะกลับไปเลยพร้อมบอกว่าไม่มีสิทธิ์
+    if (!token) {
+        return res.status(401).json({ success: false, error: 'ปฏิเสธการเข้าถึง: คุณยังไม่ได้เข้าสู่ระบบ' });
+    }
+
+    // ถ้ามี Token ก็เอามาตรวจสอบกับรหัสลับของเราว่าของแท้ไหม หรือหมดอายุหรือยัง
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.status(403).json({ success: false, error: 'Token ไม่ถูกต้องหรือหมดอายุการใช้งาน โปรดเข้าสู่ระบบใหม่' });
+        }
+        req.user = user; // ถ้าของแท้ ก็จำข้อมูลคนนั้นไว้ แล้วปล่อยให้ผ่านไปทำงานต่อได้
+        next(); 
+    });
+}
+
+// ส่วนที่ 4: ระบบเข้าสู่ระบบ (Login)
+// เมื่อล็อกอินผ่าน จะมีการสร้าง Token แจกกลับไปให้เอาไปใช้ยืนยันตัวตนในครั้งต่อๆ ไป
 app.post('/owner-login', async (req, res) => {
     try {
         const { username, password } = req.body;
 
-        // ตรวจสอบรหัสผ่านเบื้องต้นจากตาราง users
+        // เช็กชื่อผู้ใช้กับรหัสผ่านจากตาราง users
         const { rows } = await pool.query(
             "SELECT * FROM users WHERE (username = $1 OR REPLACE(username, '-', '') = REPLACE($1, '-', '')) AND password = $2", 
             [username, password]
@@ -59,61 +69,64 @@ app.post('/owner-login', async (req, res) => {
         const user = rows[0];
         const mustChange = (user.must_change_password === true || user.must_change_password === 'true' || user.must_change_password === 't');
 
-        // เช็คว่าเป็น "เจ้าของโรงรับซื้อ" (ใช้ joy เพียงบัญชีเดียว)
+        // เช็คว่าเป็น เถ้าแก่โรงรับซื้อ หรือไม่ (บัญชี joy)
         if (username === 'joy') {
+            const token = jwt.sign({ username: username, role: 'owner' }, JWT_SECRET, { expiresIn: '1d' }); // สร้างตั๋วอายุ 1 วัน
             return res.json({ 
                 success: true, 
                 role: 'owner', 
                 gardenID: username, 
                 displayName: 'เจ้าของโรงรับซื้อ', 
-                mustChangePassword: mustChange, 
+                mustChangePassword: mustChange,
+                token: token, // ส่งตั๋วกลับไปให้ React
                 message: 'ยินดีต้อนรับเจ้าของโรงรับซื้อ' 
             });
         }
 
-        // เช็คว่าเป็น "คนกรีดยาง / ลูกจ้าง" หรือไม่
+        // เช็คว่าเป็น คนกรีดยาง หรือไม่
         const empCheck = await pool.query(
             "SELECT * FROM employees WHERE REPLACE(phone, '-', '') = REPLACE($1, '-', '')", 
             [username]
         );
         if (empCheck.rows.length > 0) {
             const empData = empCheck.rows[0];
+            const token = jwt.sign({ username: username, role: 'employee', empID: empData.id }, JWT_SECRET, { expiresIn: '1d' });
             return res.json({ 
                 success: true, 
                 role: 'employee', 
                 empID: empData.id, 
                 gardenID: empData.gardenid, 
                 displayName: empData.name, 
-                mustChangePassword: mustChange, 
+                mustChangePassword: mustChange,
+                token: token, 
                 message: 'ยินดีต้อนรับคนกรีดยาง' 
             });
         }
 
-        // เช็คว่าผู้ที่กำลังเข้าสู่ระบบคือ "เจ้าของสวน" หรือไม่
+        // เช็คว่าเป็น เจ้าของสวน หรือไม่
         const ownerCheck = await pool.query("SELECT * FROM gardenowner WHERE gardenid = $1", [username]);
         if (ownerCheck.rows.length > 0) {
+            const token = jwt.sign({ username: username, role: 'garden_owner' }, JWT_SECRET, { expiresIn: '1d' });
             return res.json({ 
                 success: true, 
                 role: 'garden_owner',
                 gardenID: username,
                 displayName: ownerCheck.rows[0].name || username, 
-                mustChangePassword: mustChange, 
+                mustChangePassword: mustChange,
+                token: token, 
                 message: 'ยินดีต้อนรับเจ้าของสวน' 
             });
         }
 
-        return res.status(403).json({ 
-            success: false, 
-            message: 'ระบุตัวตนสำเร็จ แต่ไม่พบสิทธิ์การใช้งานในระบบ กรุณาติดต่อแอดมิน' 
-        });
+        return res.status(403).json({ success: false, message: 'ระบุตัวตนสำเร็จ แต่ไม่พบสิทธิ์การใช้งาน' });
 
     } catch (err) { 
         return res.status(500).json({ success: false, message: 'ฐานข้อมูลขัดข้อง: ' + err.message }); 
     }
 });
 
-// API เปลี่ยนรหัสผ่าน 
-app.post(['/api/change-password', '/change-password'], async (req, res) => {
+// API เปลี่ยนรหัสผ่าน (เพิ่มด่านตรวจ Token เพื่อให้เฉพาะคนที่ล็อกอินแล้วเท่านั้นที่เปลี่ยนได้)
+app.post(['/api/change-password', '/change-password'], authenticateToken, async (req, res) => {
     const { username, newPassword } = req.body; 
     try {
         const result = await pool.query(
@@ -130,27 +143,28 @@ app.post(['/api/change-password', '/change-password'], async (req, res) => {
     }
 });
 
-// 6. 🟢 [เกี่ยวกับเจ้าของสวน]: กลุ่ม API จัดการแปลงยางและลูกจ้างในสังกัดของ "เจ้าของสวน"
-// =========================================================================================
 
-// 🟢 [เจ้าของสวน เพิ่มแปลงยาง]: เจ้าของสวนเพิ่มแปลงยางใหม่ของตัวเองเข้าฐานข้อมูล
-app.post('/api/add-plot', async (req, res) => {
+// ส่วนที่ 5: กลุ่ม API สำหรับจัดการข้อมูลของเจ้าของสวน
+// สังเกตว่า API ที่มีการ เพิ่ม แก้ไข ลบ จะถูกแปะคำว่า authenticateToken ไว้ตรงกลาง เพื่อป้องกันคนนอกมายิง API เล่น
+
+// เจ้าของสวนเพิ่มแปลงยาง
+app.post('/api/add-plot', authenticateToken, async (req, res) => {
     try {
         await pool.query("INSERT INTO plots (gardenid, plotname, gardenlocation) VALUES ($1, $2, $3)", [req.body.gardenID, req.body.plotName, req.body.gardenLocation]);
         res.json({ success: true, message: 'เพิ่มแปลงยางเรียบร้อย!' });
     } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// 🟢 [เจ้าของสวน ดูรายการแปลงยาง]: ดึงแปลงยางทั้งหมดที่ "เจ้าของสวนคนนี้" เป็นเจ้าของ ตาม gardenid
+// ดึงรายการแปลงยาง (อันนี้เปิดให้ดึงดูได้ ไม่ต้องบังคับตรวจ Token ก็ได้เพื่อความลื่นไหลในการโหลดหน้าเว็บ)
 app.get('/api/plots/:id', async (req, res) => {
-    try {                                       //คำสั่งดึงข้อมูลสวนยางที่ถูกเพิ่มขึ้นมาโชว์ 
+    try {
         const { rows } = await pool.query("SELECT * FROM plots WHERE gardenid = $1 ORDER BY id ASC", [req.params.id]);
         res.json(rows);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 🟢 [เจ้าของสวน แก้ไขแปลงยาง]: เปลี่ยนชื่อหรือสถานที่ตั้งของแปลงยางของเจ้าของสวน
-app.put('/api/edit-plot/:id', async (req, res) => {
+// เจ้าของสวนแก้ไขแปลงยาง
+app.put('/api/edit-plot/:id', authenticateToken, async (req, res) => {
     try {
         const { plotName, gardenLocation } = req.body;
         await pool.query(
@@ -158,13 +172,11 @@ app.put('/api/edit-plot/:id', async (req, res) => {
             [plotName, gardenLocation, req.params.id]
         );
         res.json({ success: true, message: 'แก้ไขแปลงยางเรียบร้อย!' });
-    } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
-    }
+    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// 🟢 [เจ้าของสวน ลบแปลงยาง]: ลบแปลงยางออกจากระบบ (รวมถึงลบข้อมูลการผูกแปลงของลูกจ้างในแปลงนั้นด้วย)
-app.delete('/api/delete-plot/:id', async (req, res) => {
+// เจ้าของสวนลบแปลงยาง
+app.delete('/api/delete-plot/:id', authenticateToken, async (req, res) => {
     try {
         await pool.query("BEGIN");
         await pool.query("DELETE FROM plot_assignments WHERE plot_id = $1", [req.params.id]);
@@ -177,13 +189,11 @@ app.delete('/api/delete-plot/:id', async (req, res) => {
     }
 });
 
-// 🟢 [เจ้าของสวน เพิ่มคนกรีดยาง]: เจ้าของสวนสร้างบัญชีผู้ใช้และเพิ่มลูกจ้างใหม่เข้ามาทำงานในสวนของตน
-app.post('/api/add-employee', async (req, res) => {
+// เจ้าของสวนเพิ่มคนกรีดยาง
+app.post('/api/add-employee', authenticateToken, async (req, res) => {
     try {
         await pool.query("BEGIN");
-        // สร้าง รหัสผ่าน/บัญชี สำหรับลูกจ้างเข้าใช้งานแอพ
         await pool.query("INSERT INTO users (username, password, must_change_password) VALUES ($1, $2, TRUE)", [req.body.phone, req.body.password]);
-        // ผูกลูกจ้างคนนี้ไว้กับ gardenid ของเจ้าของสวน
         await pool.query("INSERT INTO employees (gardenid, name, phone) VALUES ($1, $2, $3)", [req.body.gardenID, req.body.name, req.body.phone]);
         await pool.query("COMMIT");
         res.json({ success: true, message: 'เพิ่มคนกรีดยางเรียบร้อย!' });
@@ -193,7 +203,7 @@ app.post('/api/add-employee', async (req, res) => {
     }
 });
 
-// 🟢 [เจ้าของสวน ดูรายการลูกจ้าง]: ดึงรายชื่อคนกรีดยางทั้งหมดที่เป็นลูกจ้างของเจ้าของสวนคนนี้
+// ดึงรายการคนกรีดยาง
 app.get('/api/employees/:id', async (req, res) => {
     try {
         const { rows } = await pool.query("SELECT * FROM employees WHERE gardenid = $1 ORDER BY id ASC", [req.params.id]);
@@ -201,8 +211,8 @@ app.get('/api/employees/:id', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 🟢 [เจ้าของสวน แก้ไขลูกจ้าง]: เปลี่ยนชื่อ เบอร์โทร หรือรหัสผ่าน ของคนกรีดยางในสวน
-app.put('/api/edit-employee/:id', async (req, res) => {
+// เจ้าของสวนแก้ไขข้อมูลคนกรีดยาง
+app.put('/api/edit-employee/:id', authenticateToken, async (req, res) => {
     const { name, phone, password } = req.body;
     try {
         await pool.query("BEGIN");
@@ -239,12 +249,12 @@ app.put('/api/edit-employee/:id', async (req, res) => {
     }
 });
 
-// 🟢 [เจ้าของสวน ลบลูกจ้าง]: ลบรายชื่อคนกรีดยางออกจากสวนของตัวเอง
-app.delete('/api/delete-employee/:id', async (req, res) => {//รับคำสั่งลบ
+// เจ้าของสวนลบข้อมูลคนกรีดยาง
+app.delete('/api/delete-employee/:id', authenticateToken, async (req, res) => {
     try {           
         const { rows } = await pool.query("SELECT phone FROM employees WHERE id = $1", [req.params.id]);
         if (rows.length) {
-            await pool.query("BEGIN");//สั่งเปิด Transaction เพื่อบอกฐานข้อมูลว่า "คำสั่งลบหลังจากนี้ต้องทำสำเร็จ
+            await pool.query("BEGIN");
             await pool.query("DELETE FROM employees WHERE id = $1", [req.params.id]);
             await pool.query("DELETE FROM users WHERE username = $1", [rows[0].phone]);
             await pool.query("COMMIT");
@@ -256,36 +266,31 @@ app.delete('/api/delete-employee/:id', async (req, res) => {//รับคำส
     }
 });
 
-// 🟢 [เจ้าของสวน ดูสรุปรายได้กราฟแท่ง]: คำนวณสรุปผลรวมน้ำหนักน้ำยางและ "รายได้รวมของเจ้าของสวน" ในแต่ละแปลง
-// ข้อมูลนี้ถูกส่งไปทำกราฟแท่งในหน้า Dashboard ของเจ้าของสวน เพื่อเปรียบเทียบว่าแปลงไหนทำเงินได้เยอะที่สุด
+// ดึงสรุปรายได้ไปทำกราฟแท่ง
 app.get('/api/owner/plot-summary/:gardenID', async (req, res) => {
-    try {//app.get: สร้างช่องทางรับข้อมูลแบบ GET (ดึงข้อมูล)
+    try {
         const query = `
             SELECT 
                 p.id AS plot_id,
                 p.plotname AS plot_name,
                 COALESCE(SUM(dr.weight), 0) AS total_weight,
-                COALESCE(SUM(dr.owner_amount), 0) AS total_owner_income -- รวมรายได้เฉพาะส่วนของ "เจ้าของสวน"
+                COALESCE(SUM(dr.owner_amount), 0) AS total_owner_income
             FROM plots p
             LEFT JOIN plot_assignments pa ON p.id = pa.plot_id
             LEFT JOIN daily_records dr ON pa.id = dr.assignment_id
-            WHERE p.gardenid = $1 -- กรองเอาเฉพาะเจ้าของสวนคนนี้
+            WHERE p.gardenid = $1
             GROUP BY p.id, p.plotname
             ORDER BY total_owner_income DESC;
         `;
         const { rows } = await pool.query(query, [req.params.gardenID]);
         res.json(rows);
     } catch (err) {
-        console.error("Plot Summary Error:", err);
         res.status(500).json({ error: 'Server Error' });
     }
 });
 
-// 7. 🟢 [เกี่ยวกับเจ้าของสวน]: API ผูกแปลงยางและกำหนดส่วนแบ่งรายได้ระหว่าง "เจ้าของสวน" กับ "คนกรีดยาง"
-// =========================================================================================
-
-// 🟢 [เจ้าของสวน กำหนดส่วนแบ่งเงิน]: กำหนดว่าลูกจ้างคนไหนกรีดแปลงไหน และแบ่งเงินกันกี่ % (owner_share = % ของเจ้าของสวน)
-app.post('/api/assign-plot', async (req, res) => {
+// ผูกแปลงยางและแบ่งเปอร์เซ็นต์
+app.post('/api/assign-plot', authenticateToken, async (req, res) => {
     try {
         await pool.query("INSERT INTO plot_assignments (gardenid, plot_id, employee_id, owner_share, tapper_share) VALUES ($1, $2, $3, $4, $5)",
             [req.body.gardenID, req.body.plotID, req.body.employeeID, req.body.ownerShare, req.body.tapperShare]);
@@ -293,7 +298,7 @@ app.post('/api/assign-plot', async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// 🟢 [เจ้าของสวน ดูการผูกแปลง]: ดึงข้อมูลว่าแปลงไหน ใครกรีด และเจ้าของสวนได้ส่วนแบ่งกี่ %
+// ดึงข้อมูลการผูกแปลง
 app.get('/api/assignments', async (req, res) => {
     try {
         let sql = `SELECT pa.id, pa.gardenid, go.name AS owner_name, p.plotname, e.name AS tapper_name, pa.owner_share, pa.tapper_share
@@ -305,12 +310,10 @@ app.get('/api/assignments', async (req, res) => {
 
         const params = [];
         const gardenIdFilter = req.query.gardenID || req.query.gardenId || req.query.gardenid;
-        
         if (gardenIdFilter) {
             params.push(gardenIdFilter);
-            sql += ` AND pa.gardenid = $1`; // ดึงเฉพาะของเจ้าของสวนคนนั้น
+            sql += ` AND pa.gardenid = $1`; 
         }
-        
         sql += ` ORDER BY pa.id DESC`;
 
         const { rows } = await pool.query(sql, params);
@@ -318,37 +321,25 @@ app.get('/api/assignments', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/delete-assignment/:id', async (req, res) => {
+// ลบการผูกแปลง
+app.delete('/api/delete-assignment/:id', authenticateToken, async (req, res) => {
     try {
         await pool.query("DELETE FROM plot_assignments WHERE id = $1", [req.params.id]);
         res.json({ success: true, message: 'ลบเรียบร้อย!' });
     } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// 8. 🟢 [เกี่ยวกับเจ้าของสวน]: API บันทึกและดึงประวัติการขายน้ำยาง (คิดคำนวณเงินให้เจ้าของสวน)
-// =========================================================================================
 
-// 🟢 [เจ้าของสวน ดูประวัติการขายน้ำยาง]: ดึงประวัติการขาย ยอดเงินรวม เงินที่เจ้าของสวนได้รับ (owner_amount) และเปอร์เซ็นต์ส่วนแบ่ง (owner_share)
+// ส่วนที่ 6: กลุ่ม API จัดการบันทึกยอดขายน้ำยาง
+// ดึงประวัติการขาย
 app.get(['/api/daily_records', '/api/sales-history', '/api/daily-log-details'], async (req, res) => {
     try {
         let sql = `
             SELECT 
-                dr.id,
-                dr.assignment_id,
-                pa.gardenid, 
-                go.name AS owner_name, -- ชื่อเจ้าของสวน
-                p.plotname, 
-                e.name AS tapper_name,
-                dr.weight, 
-                dr.drc, 
-                dr.price, 
-                dr.total_amount, 
-                dr.owner_amount, -- จำนวนเงินส่วนของเจ้าของสวน
-                dr.tapper_amount,
-                pa.owner_share,  -- % ส่วนแบ่งเจ้าของสวน
-                pa.tapper_share,
-                TO_CHAR(dr.record_date, 'YYYY-MM-DD') AS record_date,
-                TO_CHAR(dr.created_at, 'HH24:MI:SS') AS time
+                dr.id, dr.assignment_id, pa.gardenid, go.name AS owner_name, p.plotname, e.name AS tapper_name,
+                dr.weight, dr.drc, dr.price, dr.total_amount, dr.owner_amount, dr.tapper_amount,
+                pa.owner_share, pa.tapper_share,
+                TO_CHAR(dr.record_date, 'YYYY-MM-DD') AS record_date, TO_CHAR(dr.created_at, 'HH24:MI:SS') AS time
             FROM daily_records dr
             LEFT JOIN plot_assignments pa ON dr.assignment_id = pa.id
             LEFT JOIN gardenowner go ON pa.gardenid = go.gardenid
@@ -356,134 +347,90 @@ app.get(['/api/daily_records', '/api/sales-history', '/api/daily-log-details'], 
             LEFT JOIN plots p ON pa.plot_id = p.id
             WHERE 1=1
         `;
-        
         const params = [];
-        
         if (req.query.date) {
             params.push(req.query.date);
             sql += ` AND dr.record_date = $${params.length}`;
         }
-
         const gardenIdFilter = req.query.gardenID || req.query.gardenId || req.query.gardenid;
         if (gardenIdFilter) {
             params.push(gardenIdFilter);
-            sql += ` AND pa.gardenid = $${params.length}`; // ดึงเฉพาะประวัติของเจ้าของสวนคนนี้
+            sql += ` AND pa.gardenid = $${params.length}`; 
         }
-        
         sql += ` ORDER BY dr.record_date DESC, dr.id DESC LIMIT 200`;
-        
         const { rows } = await pool.query(sql, params);
         res.json(rows);
-    } catch (err) {
-        console.error("Fetch Sales History Error:", err);
-        res.json([]); 
-    }
+    } catch (err) { res.json([]); }
 });
 
-// บันทึกข้อมูลรับซื้อน้ำยาง
-app.post(['/api/daily_records', '/api/purchase'], async (req, res) => {
+// บันทึกซื้อขายน้ำยาง (ต้องมี Token)
+app.post(['/api/daily_records', '/api/purchase'], authenticateToken, async (req, res) => {
     try {
         const assignment_id = req.body.assignment_id || req.body.assignmentId;
         const date = req.body.date || req.body.record_date || new Date().toISOString().split('T')[0];
-        
         const weight = parseFloat(req.body.weight) || 0;
         const drc = parseFloat(req.body.drc) || 0;
         const price = parseFloat(req.body.price) || 0;
 
-        if (!assignment_id) {
-            return res.status(400).json({ success: false, message: 'กรุณาเลือกแปลงสวนยาง' });
-        }
+        if (!assignment_id) return res.status(400).json({ success: false, message: 'กรุณาเลือกแปลงสวนยาง' });
 
-        // ดึง % ส่วนแบ่งของเจ้าของสวน (owner_share) มาใช้คำนวณ
         const { rows } = await pool.query("SELECT owner_share, tapper_share FROM plot_assignments WHERE id = $1", [assignment_id]);
         const oShare = rows.length ? parseFloat(rows[0].owner_share) || 50 : 50;
         const tShare = rows.length ? parseFloat(rows[0].tapper_share) || 50 : 50;
         
-        // สูตรคำนวณเงินรวม = น้ำหนัก x (%ยางแห้ง/100) x ราคาน้ำยาง
         const tAmt = (weight * (drc / 100)) * price;
-        // 🟢 เงินที่เจ้าของสวนจะได้รับ = เงินรวม x (%ของเจ้าของสวน / 100)
         const ownerAmt = tAmt * (oShare / 100);
         const tapperAmt = tAmt * (tShare / 100);
 
-        // บันทึกยอดเงินของเจ้าของสวนลงในตาราง daily_records
         const { rows: newRec } = await pool.query(`
             INSERT INTO daily_records (assignment_id, record_date, weight, drc, price, total_amount, owner_amount, tapper_amount)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
         `, [assignment_id, date, weight, drc, price, tAmt, ownerAmt, tapperAmt]);
         
         res.json({ success: true, message: 'บันทึกสำเร็จ!', recordId: newRec[0].id });
-    } catch (err) { 
-        console.error("Insert Data Error:", err);
-        res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาด: ' + err.message }); 
-    }
+    } catch (err) { res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาด: ' + err.message }); }
 });
 
-app.delete('/api/daily_records/:id', async (req, res) => {
+// ลบประวัติบันทึกการขาย (ต้องมี Token)
+app.delete('/api/daily_records/:id', authenticateToken, async (req, res) => {
     try {
-        const { id } = req.params;
-        const result = await pool.query("DELETE FROM daily_records WHERE id = $1 RETURNING *", [id]);
-        
-        if (result.rowCount === 0) {
-            return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลที่ต้องการลบ' });
-        }
-        
+        const result = await pool.query("DELETE FROM daily_records WHERE id = $1 RETURNING *", [req.params.id]);
+        if (result.rowCount === 0) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลที่ต้องการลบ' });
         res.json({ success: true, message: 'ลบข้อมูลสำเร็จ!' });
-    } catch (err) {
-        console.error("Delete Record Error:", err);
-        res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการลบข้อมูล: ' + err.message });
-    }
+    } catch (err) { res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาด: ' + err.message }); }
 });
 
-// 🟢 [เจ้าของสวน ดูการ์ดสรุปยอดประจำวัน]: ดึงผลรวมเงิน น้ำหนักรวม และ %DRC เฉลี่ย ไปแสดงบนการ์ดในแดชบอร์ดเจ้าของสวน
+// การ์ดสรุปยอดหน้าแรก
 app.get('/api/daily-summary', async (req, res) => {
     try {
         let sql = `
-            SELECT 
-                COALESCE(SUM(dr.total_amount), 0) AS total_expense, 
-                COALESCE(SUM(dr.weight), 0) AS total_weight, 
-                COALESCE(AVG(dr.drc), 0) AS avg_drc 
-            FROM daily_records dr
-            LEFT JOIN plot_assignments pa ON dr.assignment_id = pa.id
-            WHERE dr.record_date = $1
+            SELECT COALESCE(SUM(dr.total_amount), 0) AS total_expense, COALESCE(SUM(dr.weight), 0) AS total_weight, COALESCE(AVG(dr.drc), 0) AS avg_drc 
+            FROM daily_records dr LEFT JOIN plot_assignments pa ON dr.assignment_id = pa.id WHERE dr.record_date = $1
         `;
         const params = [req.query.date];
-
         const gardenIdFilter = req.query.gardenID || req.query.gardenId || req.query.gardenid;
         if (gardenIdFilter) {
             params.push(gardenIdFilter);
-            sql += ` AND pa.gardenid = $2`; // กรองเฉพาะสวนของเจ้าของคนนี้
+            sql += ` AND pa.gardenid = $2`; 
         }
-
         const { rows } = await pool.query(sql, params);
-        res.json({ 
-            total_expense: parseFloat(rows[0].total_expense), 
-            total_weight: parseFloat(rows[0].total_weight), 
-            avg_drc: parseFloat(rows[0].avg_drc) 
-        });
+        res.json({ total_expense: parseFloat(rows[0].total_expense), total_weight: parseFloat(rows[0].total_weight), avg_drc: parseFloat(rows[0].avg_drc) });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 9. 🟢 [เกี่ยวกับเจ้าของสวน]: API ระบบจัดการข้อมูล "เจ้าของสวน" (สร้างขึ้นโดยฝั่งแอดมิน/เถ้าแก่ใหญ่)
-// =========================================================================================
 
-// 🟢 [สร้าง รหัสเจ้าของสวน]: หาเลข ID ถัดไปให้เจ้าของสวนคนใหม่ (เช่น 01, 02, 03)
+// ส่วนที่ 7: กลุ่ม API จัดการระบบฝั่งแอดมินหรือเจ้าของโรงรับซื้อ
+// ดึงเลขไอดีถัดไปสำหรับสร้างเจ้าของสวนใหม่
 app.get('/api/next-owner-id', async (req, res) => {
     try {
-        const [uRes, oRes] = await Promise.all([
-            pool.query("SELECT username FROM users"), 
-            pool.query("SELECT gardenid FROM gardenowner")
-        ]);
-        const allIds = [...uRes.rows.map(r=>r.username), ...oRes.rows.map(r=>r.gardenid)];
-        const validIds = allIds.map(id => String(id).trim()).filter(id => /^\d+$/.test(id) && id.length <= 4).map(id => parseInt(id, 10));
-        const maxId = validIds.length > 0 ? Math.max(...validIds) : 0;
-        res.json({ success: true, nextId: String(maxId + 1).padStart(2, '0') });
-    } catch (err) { 
-        res.status(500).json({ success: false, nextId: '01' }); 
-    }
+        const [uRes, oRes] = await Promise.all([ pool.query("SELECT username FROM users"), pool.query("SELECT gardenid FROM gardenowner") ]);
+        const validIds = [...uRes.rows.map(r=>r.username), ...oRes.rows.map(r=>r.gardenid)].map(id => String(id).trim()).filter(id => /^\d+$/.test(id) && id.length <= 4).map(id => parseInt(id, 10));
+        res.json({ success: true, nextId: String(validIds.length > 0 ? Math.max(...validIds) : 0 + 1).padStart(2, '0') });
+    } catch (err) { res.status(500).json({ success: false, nextId: '01' }); }
 });
 
-// เจ้าของสวนใหม่: เพิ่มข้อมูลโปรไฟล์และรหัสผ่านเข้าสู่ตาราง gardenowner และ users
-app.post('/api/add-garden-owner', async (req, res) => {
+// แอดมินเพิ่มบัญชีเจ้าของสวนคนใหม่เข้าระบบ
+app.post('/api/add-garden-owner', authenticateToken, async (req, res) => {
     const { username, password, nametitle, name, phone } = req.body;
     try {
         await pool.query("BEGIN");
@@ -497,7 +444,7 @@ app.post('/api/add-garden-owner', async (req, res) => {
     }
 });
 
-// 🟢 [ดึงรายชื่อ เจ้าของสวนทั้งหมด]: ดึงข้อมูลเจ้าของสวนทุกคนไปแสดงในตารางรายชื่อลูกค้า
+// ดึงรายชื่อเจ้าของสวนทั้งหมดมาแสดงให้แอดมินดู
 app.get('/api/customers', async (req, res) => {
     try {
         const { rows } = await pool.query("SELECT g.gardenid, g.nametitle, g.name, g.phone, u.password FROM gardenowner g LEFT JOIN users u ON g.gardenid = u.username ORDER BY g.gardenid ASC");
@@ -505,8 +452,8 @@ app.get('/api/customers', async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
-// 🟢 [แก้ไขข้อมูล เจ้าของสวน]: แก้ไขชื่อ เบอร์โทร หรือรหัสผ่านของเจ้าของสวน
-app.put('/api/update-customer/:gardenid', async (req, res) => {
+// แอดมินแก้ไขข้อมูลเจ้าของสวน
+app.put('/api/update-customer/:gardenid', authenticateToken, async (req, res) => {
     try {
         await pool.query("BEGIN");
         await pool.query("UPDATE gardenowner SET nametitle = $1, name = $2, phone = $3 WHERE gardenid = $4", [req.body.nametitle||'', req.body.name||'', req.body.phone||'', req.params.gardenid]);
@@ -519,8 +466,8 @@ app.put('/api/update-customer/:gardenid', async (req, res) => {
     }
 });
 
-// 🟢 [ลบ เจ้าของสวน]: ลบบัญชีเจ้าของสวนออกจากระบบ
-app.delete('/api/delete-customer/:gardenid', async (req, res) => {
+// แอดมินลบบัญชีเจ้าของสวน
+app.delete('/api/delete-customer/:gardenid', authenticateToken, async (req, res) => {
     try {
         await pool.query("BEGIN");
         await pool.query("DELETE FROM gardenowner WHERE gardenid = $1", [req.params.gardenid]);
@@ -533,99 +480,48 @@ app.delete('/api/delete-customer/:gardenid', async (req, res) => {
     }
 });
 
-// 10. API ฝั่งลูกจ้าง (ดึงข้อมูลให้หน้าจอฝั่งลูกจ้าง)
-app.get('/api/employee-assignments/:empID', async (req, res) => {
-    try {
-        const { rows } = await pool.query(`
-            SELECT pa.id AS assignment_id, p.plotname, p.gardenlocation, pa.gardenid
-            FROM plot_assignments pa
-            JOIN plots p ON pa.plot_id = p.id
-            WHERE pa.employee_id = $1
-        `, [req.params.empID]);
-        res.json(rows);
-    } catch (err) { 
-        res.status(500).json({ error: err.message }); 
-    }
-});
 
-app.get('/api/employee-history/:empID', async (req, res) => {
-    try {
-        const { rows } = await pool.query(`
-            SELECT 
-                dr.id, dr.weight, dr.drc, dr.price, dr.tapper_amount AS my_income,
-                TO_CHAR(dr.record_date, 'YYYY-MM-DD') AS record_date,
-                p.plotname
-            FROM daily_records dr
-            JOIN plot_assignments pa ON dr.assignment_id = pa.id
-            JOIN plots p ON pa.plot_id = p.id
-            WHERE pa.employee_id = $1
-            ORDER BY dr.record_date DESC, dr.id DESC 
-            LIMIT 50
-        `, [req.params.empID]);
-        res.json(rows);
-    } catch (err) { 
-        res.status(500).json({ error: err.message }); 
-    }
-});
-
-// 12. API ระบบเบิกเงิน
-app.post('/api/withdrawals', async (req, res) => {
+// ส่วนที่ 8: กลุ่ม API ระบบเบิกเงินของลูกจ้าง
+// ลูกจ้างกดส่งคำขอเบิกเงิน
+app.post('/api/withdrawals', authenticateToken, async (req, res) => {
     const { empID, amount } = req.body;
     try {
-        await pool.query(
-            "INSERT INTO withdrawals (employee_id, amount, status) VALUES ($1, $2, 'pending')",
-            [empID, amount]
-        );
+        await pool.query("INSERT INTO withdrawals (employee_id, amount, status) VALUES ($1, $2, 'pending')", [empID, amount]);
         res.json({ success: true, message: 'บันทึกคำขอเบิกเงินสำเร็จ' });
-    } catch (err) {
-        res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาด: ' + err.message });
-    }
+    } catch (err) { res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาด: ' + err.message }); }
 });
 
+// เจ้าของสวนดึงรายการเบิกเงินที่รอดำเนินการมาดู
 app.get('/api/withdrawals/pending', async (req, res) => {
     try {
         const { rows } = await pool.query(`
-            SELECT w.id, w.amount, TO_CHAR(w.request_date, 'YYYY-MM-DD HH24:MI') as req_date, 
-                   e.name as employee_name, g.name as owner_name
-            FROM withdrawals w
-            JOIN employees e ON w.employee_id = e.id
-            JOIN gardenowner g ON e.gardenid = g.gardenid
-            WHERE w.status = 'pending'
-            ORDER BY w.request_date ASC
+            SELECT w.id, w.amount, TO_CHAR(w.request_date, 'YYYY-MM-DD HH24:MI') as req_date, e.name as employee_name, g.name as owner_name
+            FROM withdrawals w JOIN employees e ON w.employee_id = e.id JOIN gardenowner g ON e.gardenid = g.gardenid WHERE w.status = 'pending' ORDER BY w.request_date ASC
         `);
         res.json(rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/withdrawals/:id/status', async (req, res) => {
-    const { status } = req.body;
+// เจ้าของสวนกดอนุมัติหรือปฏิเสธคำขอเบิกเงิน
+app.put('/api/withdrawals/:id/status', authenticateToken, async (req, res) => {
     try {
-        await pool.query(
-            "UPDATE withdrawals SET status = $1 WHERE id = $2",
-            [status, req.params.id]
-        );
+        await pool.query("UPDATE withdrawals SET status = $1 WHERE id = $2", [req.body.status, req.params.id]);
         res.json({ success: true, message: 'อัปเดตสถานะการเบิกเงินสำเร็จ' });
-    } catch (err) {
-        res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาด: ' + err.message });
-    }
+    } catch (err) { res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาด: ' + err.message }); }
 });
 
+// ลูกจ้างดูประวัติการเบิกเงินของตัวเอง
 app.get('/api/employee-withdrawals/:empID', async (req, res) => {
     try {
-        const { rows } = await pool.query(
-            "SELECT id, amount, status, TO_CHAR(request_date, 'YYYY-MM-DD HH24:MI') as req_date FROM withdrawals WHERE employee_id = $1 ORDER BY request_date DESC",
-            [req.params.empID]
-        );
+        const { rows } = await pool.query("SELECT id, amount, status, TO_CHAR(request_date, 'YYYY-MM-DD HH24:MI') as req_date FROM withdrawals WHERE employee_id = $1 ORDER BY request_date DESC", [req.params.empID]);
         res.json(rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// 13. API สำหรับดึงข้อมูลทำกราฟสรุป DRC % รายวัน
-app.get('/api/drc-summary', async (req, res) => {
+// ==============================================================================
+// กลุ่ม API สำหรับดึงข้อมูลทำกราฟสรุป DRC % รายวัน
+// ==============================================================================
+app.get('/api/drc-summary', authenticateToken, async (req, res) => {
     try {
         const queryText = `
             SELECT 
@@ -646,5 +542,5 @@ app.get('/api/drc-summary', async (req, res) => {
     }
 });
 
-// 14. Start Server
+// ส่วนสุดท้าย: คำสั่งให้เซิร์ฟเวอร์เริ่มทำงาน
 app.listen(PORT, () => console.log(`เซิร์ฟเวอร์ทำงานเรียบร้อยที่: http://localhost:${PORT}`));

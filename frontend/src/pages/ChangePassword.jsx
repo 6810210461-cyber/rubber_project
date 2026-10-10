@@ -24,9 +24,14 @@ function ChangePassword() {
         }
 
         try {
+            // 📌 ถึงแม้จะเป็นหน้าบังคับเปลี่ยนรหัสผ่าน แต่ก็ควรดึง Token ส่งไปยืนยันกับเซิร์ฟเวอร์ด้วย
+            const token = localStorage.getItem('token');
             const res = await fetch('http://localhost:3000/change-password', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` // แนบ Token ไปให้เซิร์ฟเวอร์
+                },
                 body: JSON.stringify({ username, newPassword })
             });
             const data = await res.json();

@@ -64,9 +64,16 @@ function GardenOwnerDashboard() {
       return;
     }
     try {
+      // ดึง Token ที่เก็บไว้ในเครื่องตอนล็อกอินสำเร็จออกมา
+      const token = localStorage.getItem('token');
+      
       const res = await fetch('http://localhost:3000/api/change-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // แนบ Token ไปใน Headers ด้วย เพื่อให้ยามฝั่งเซิร์ฟเวอร์ตรวจว่าเรามีสิทธิ์เปลี่ยนรหัสผ่านจริงๆ
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
         body: JSON.stringify({ username: gardenID, newPassword })
       });
       const data = await res.json();
@@ -86,7 +93,15 @@ function GardenOwnerDashboard() {
 
   const fetchPlots = async () => {
     try {
-      const res = await fetch(`http://localhost:3000/api/plots/${gardenID}`);
+      // ดึง Token มาเตรียมไว้
+      const token = localStorage.getItem('token');
+      
+      // การดึงข้อมูลแบบ GET เราก็แนบ Token ไปด้วยเพื่อความปลอดภัยสูงสุด
+      const res = await fetch(`http://localhost:3000/api/plots/${gardenID}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       const data = await res.json();
       if (Array.isArray(data)) setPlots(data);
     } catch (err) {
@@ -96,7 +111,13 @@ function GardenOwnerDashboard() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch(`http://localhost:3000/api/employees/${gardenID}`);
+      const token = localStorage.getItem('token');
+      
+      const res = await fetch(`http://localhost:3000/api/employees/${gardenID}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       const data = await res.json();
       if (Array.isArray(data)) setEmployees(data);
     } catch (err) {
@@ -106,7 +127,13 @@ function GardenOwnerDashboard() {
 
   const fetchIncomeRecords = async () => {
     try {
-      const res = await fetch(`http://localhost:3000/api/daily-log-details?date=${filterDate}&gardenID=${gardenID}`);
+      const token = localStorage.getItem('token');
+      
+      const res = await fetch(`http://localhost:3000/api/daily-log-details?date=${filterDate}&gardenID=${gardenID}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       const data = await res.json();
       if (Array.isArray(data)) setIncomeRecords(data);
     } catch (err) {
@@ -129,6 +156,9 @@ function GardenOwnerDashboard() {
   const handleSavePlot = async (e) => {
     e.preventDefault();
     try {
+      // ดึงบัตรผ่านทางมาเตรียมไว้ก่อนบันทึกข้อมูล
+      const token = localStorage.getItem('token');
+      
       const url = editingPlotId 
         ? `http://localhost:3000/api/edit-plot/${editingPlotId}` 
         : 'http://localhost:3000/api/add-plot';
@@ -136,7 +166,11 @@ function GardenOwnerDashboard() {
 
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          // แนบ Token ไปให้เซิร์ฟเวอร์ เพื่อยืนยันว่าเราล็อกอินแล้วถึงจะบันทึกแปลงยางได้
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ gardenID, plotName, gardenLocation })
       });
       const data = await res.json();
@@ -155,7 +189,14 @@ function GardenOwnerDashboard() {
   const handleDeletePlot = async (id) => {
     if (!confirm('คุณต้องการลบแปลงยางนี้ใช่หรือไม่?')) return;
     try {
-      const res = await fetch(`http://localhost:3000/api/delete-plot/${id}`, { method: 'DELETE' });
+      const token = localStorage.getItem('token');
+      
+      const res = await fetch(`http://localhost:3000/api/delete-plot/${id}`, { 
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       const data = await res.json();
       if (data.success) {
         alert('ลบแปลงยางเรียบร้อย');
@@ -185,6 +226,8 @@ function GardenOwnerDashboard() {
   const handleSaveEmployee = async (e) => {
     e.preventDefault();
     try {
+      const token = localStorage.getItem('token');
+      
       const url = editingEmpId 
         ? `http://localhost:3000/api/edit-employee/${editingEmpId}` 
         : 'http://localhost:3000/api/add-employee';
@@ -192,7 +235,10 @@ function GardenOwnerDashboard() {
 
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ gardenID, name: empName, phone: empPhone, password: empPassword })
       });
       const data = await res.json();
@@ -211,7 +257,14 @@ function GardenOwnerDashboard() {
   const handleDeleteEmployee = async (id) => {
     if (!confirm('คุณต้องการลบรายชื่อนี้ใช่หรือไม่?')) return;
     try {
-      const res = await fetch(`http://localhost:3000/api/delete-employee/${id}`, { method: 'DELETE' });
+      const token = localStorage.getItem('token');
+      
+      const res = await fetch(`http://localhost:3000/api/delete-employee/${id}`, { 
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       const data = await res.json();
       if (data.success) {
         alert('ลบเรียบร้อย');

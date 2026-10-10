@@ -18,7 +18,13 @@ function CustomerList() {
     // ดึงข้อมูลลูกค้าอัตโนมัติทันทีที่เปิดหน้า
     const fetchCustomers = async () => {
         try {
-            const res = await fetch('http://localhost:3000/api/customers');
+            // 📌 ดึง Token มาเตรียมไว้เพื่อยืนยันสิทธิ์ก่อนดึงข้อมูลลูกค้า
+            const token = localStorage.getItem('token');
+            const res = await fetch('http://localhost:3000/api/customers', {
+                headers: {
+                    'Authorization': `Bearer ${token}` // แนบ Token ไปให้เซิร์ฟเวอร์
+                }
+            });
             const data = await res.json();
             setCustomers(Array.isArray(data) ? data : []);
             setLoading(false);
@@ -48,9 +54,14 @@ function CustomerList() {
     const handleSaveEdit = async (e) => {
         e.preventDefault();
         try {
+            // 📌 ดึง Token เพื่อยืนยันสิทธิ์การแก้ไข
+            const token = localStorage.getItem('token');
             const res = await fetch(`http://localhost:3000/api/update-customer/${editForm.gardenid}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` // แนบ Token
+                },
                 body: JSON.stringify(editForm)
             });
             const data = await res.json();
@@ -70,8 +81,13 @@ function CustomerList() {
     const handleDelete = async (gardenid, name) => {
         if (window.confirm(`คุณต้องการลบข้อมูลของคุณ ${name || ''} (รหัส ${gardenid}) ใช่หรือไม่?`)) {
             try {
+                // 📌 ดึง Token เพื่อยืนยันสิทธิ์ก่อนสั่งลบข้อมูลสำคัญ
+                const token = localStorage.getItem('token');
                 const res = await fetch(`http://localhost:3000/api/delete-customer/${gardenid}`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}` // แนบ Token
+                    }
                 });
                 const data = await res.json();
                 if (data.success) {

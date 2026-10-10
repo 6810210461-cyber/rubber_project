@@ -4,14 +4,16 @@ function WithdrawApproval() {
     const [withdrawals, setWithdrawals] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // ดึงข้อมูลคำขอเบิกเงินที่รออนุมัติ เมื่อเปิดหน้านี้
     useEffect(() => {
         fetchPendingWithdrawals();
     }, []);
 
     const fetchPendingWithdrawals = async () => {
         try {
-            const res = await fetch('http://localhost:3000/api/withdrawals/pending');
+            const token = localStorage.getItem('token'); // 📌 ดึง Token
+            const res = await fetch('http://localhost:3000/api/withdrawals/pending', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             const data = await res.json();
             setWithdrawals(data);
             setLoading(false);
@@ -21,22 +23,24 @@ function WithdrawApproval() {
         }
     };
 
-    // ฟังก์ชันจัดการ อนุมัติ / ปฏิเสธ
     const handleUpdateStatus = async (id, status) => {
         const actionText = status === 'approved' ? 'อนุมัติ' : 'ปฏิเสธ';
         if (!window.confirm(`คุณแน่ใจหรือไม่ที่จะ ${actionText} คำขอนี้?`)) return;
 
         try {
+            const token = localStorage.getItem('token'); // 📌 ดึง Token
             const res = await fetch(`http://localhost:3000/api/withdrawals/${id}/status`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({ status })
             });
             const data = await res.json();
             
             if (data.success) {
                 alert(`${actionText} รายการสำเร็จ!`);
-                // โหลดข้อมูลตารางใหม่ เพื่อให้รายการที่จัดการแล้วหายไป
                 fetchPendingWithdrawals();
             } else {
                 alert('เกิดข้อผิดพลาด: ' + data.message);
@@ -50,12 +54,10 @@ function WithdrawApproval() {
         <div style={{ padding: '20px', backgroundColor: '#f4f6f8', minHeight: '100vh', fontFamily: 'sans-serif' }}>
             <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
                 
-                {/* หัวตาราง */}
                 <div style={{ backgroundColor: '#4a70e8', color: 'white', padding: '15px 20px', fontSize: '18px', fontWeight: 'bold' }}>
                     💸 อนุมัติการเบิกเงินล่วงหน้า
                 </div>
 
-                {/* ตารางแสดงข้อมูล */}
                 <div style={{ padding: '20px' }}>
                     {loading ? (
                         <p style={{ textAlign: 'center', color: '#666' }}>กำลังโหลดข้อมูล...</p>
@@ -109,7 +111,6 @@ function WithdrawApproval() {
     );
 }
 
-// สไตล์ตกแต่งเพื่อให้คล้ายรูปตัวอย่างของคุณ
 const thStyle = { padding: '12px 15px', fontWeight: 'bold' };
 const tdStyle = { padding: '12px 15px', verticalAlign: 'middle' };
 const btnStyle = { 

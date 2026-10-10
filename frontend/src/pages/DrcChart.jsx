@@ -26,8 +26,15 @@ const DrcChart = () => {
     setIsRefreshing(true);
 
     try {
+      const token = localStorage.getItem('token'); // 📌 ดึง Token
+
       // ใส่ Timestamp ต่อท้าย URL เพื่อป้องกัน Browser จำค่าเก่า (No-Cache)
-      const res = await fetch(`http://localhost:3000/api/drc-summary?t=${new Date().getTime()}`);
+      const res = await fetch(`http://localhost:3000/api/drc-summary?t=${new Date().getTime()}`, {
+        headers: { 
+          'Authorization': `Bearer ${token}` // 📌 แนบ Token ไปกับ Headers
+        }
+      });
+      
       if (!res.ok) throw new Error('ดึงข้อมูลไม่ได้');
       
       const result = await res.json();
