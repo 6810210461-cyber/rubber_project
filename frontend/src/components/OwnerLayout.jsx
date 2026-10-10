@@ -1,115 +1,79 @@
-import React from 'react';
-import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
 
 function OwnerLayout() {
-  const location = useLocation();
   const navigate = useNavigate();
-  const path = location.pathname;
+  const gardenID = localStorage.getItem('gardenID') || '';
+  
+  // ย้าย State ควบคุมเมนูมาไว้ที่ Layout
+  const [activeTab, setActiveTab] = useState('plots');
 
   const handleLogout = () => {
-    if (window.confirm('คุณต้องการออกจากระบบใช่หรือไม่?')) {
-      localStorage.removeItem('userRole');
-      localStorage.removeItem('user');
-      navigate('/login');
-    }
-  };
-
-  // 🎨 ฟังก์ชันจัดการสไตล์ของเมนู (ปรับให้คุมโทนและมีมิติขึ้น)
-  const activeMenuStyle = (menuPath) => {
-    const isActive = path === menuPath;
-    return {
-      display: 'flex',
-      alignItems: 'center',
-      padding: '16px 24px',
-      color: isActive ? '#FFFFFF' : '#A3B8B0', // สีขาวตอนเลือก / สีเทาอมเขียวตอนไม่ได้เลือก
-      textDecoration: 'none',
-      fontSize: '15px',
-      fontWeight: isActive ? '600' : '400',
-      backgroundColor: isActive ? '#264F3D' : 'transparent', 
-      borderLeft: isActive ? '5px solid #7DE05E' : '5px solid transparent', // แถบสีเขียวสว่างชี้ว่าอยู่หน้าไหน
-      transition: 'all 0.3s ease',
-      cursor: 'pointer',
-      marginBottom: '4px'
-    };
+    localStorage.removeItem('gardenID');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('mustChangePassword');
+    navigate('/');
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#F0F4F2' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f4f6f8', fontFamily: 'sans-serif', position: 'relative' }}>
       
-      {/* 🌿 แถบเมนูด้านซ้าย (Sidebar) - โทนสีเขียวเข้ม */}
-      <div style={{ 
-        width: '260px', 
-        minWidth: '260px', 
-        backgroundColor: '#1B3B2B', // สีเขียวเข้มคุมโทน
-        display: 'flex', 
-        flexDirection: 'column',
-        boxShadow: '4px 0 15px rgba(0,0,0,0.05)'
-      }}>
-        
-        {/* 🟢 ส่วนหัวของ Sidebar (ใส่ไอคอนและชื่อระบบ) */}
-        <div style={{ padding: '30px 20px', textAlign: 'center', marginBottom: '10px' }}>
-          <div style={{ 
-            width: '60px', height: '60px', backgroundColor: '#264F3D', 
-            borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', 
-            margin: '0 auto 15px', fontSize: '28px' 
-          }}>
-            🌱
+      {/* Sidebar Navigation เมนูด้านข้าง */}
+      <div style={{ width: '260px', backgroundColor: '#1c431b', color: '#fff', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ paddingBottom: '20px', borderBottom: '1px solid #2d6a4f', marginBottom: '20px' }}>
+            <h3 style={{ margin: 0, color: '#d8f3dc' }}>ระบบจัดการสวน</h3>
+            <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#b7e4c7' }}>รหัสเจ้าของสวน: <b>{gardenID}</b></p>
           </div>
-          <h3 style={{ color: '#FFFFFF', margin: 0, fontSize: '18px', letterSpacing: '0.5px' }}>
-            ระบบจัดการสวนยาง
-          </h3>
-          <p style={{ color: '#7DE05E', margin: '5px 0 0', fontSize: '12px' }}>เมนูสำหรับเจ้าของสวน</p>
-        </div>
-        
-        {/* 📋 รายการเมนู (เพิ่มไอคอนอิโมจิให้ดูน่าใช้) */}
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <Link to="/owner-dashboard" style={activeMenuStyle('/owner-dashboard')}>
-            <span style={{ marginRight: '12px', fontSize: '18px' }}>📊</span> หน้าหลัก (Dashboard)
-          </Link>
-          <Link to="/manage-plots" style={activeMenuStyle('/manage-plots')}>
-            <span style={{ marginRight: '12px', fontSize: '18px' }}>🌳</span> จัดการแปลงยาง / ลูกจ้าง
-          </Link>
-          <Link to="/income-report" style={activeMenuStyle('/income-report')}>
-            <span style={{ marginRight: '12px', fontSize: '18px' }}>💰</span> ดูสรุปรายได้
-          </Link>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button
+              onClick={() => setActiveTab('plots')}
+              style={{
+                padding: '12px 15px', borderRadius: '8px', border: 'none', textAlign: 'left', fontSize: '15px', cursor: 'pointer',
+                backgroundColor: activeTab === 'plots' ? '#2d6a4f' : 'transparent',
+                color: '#fff', fontWeight: activeTab === 'plots' ? 'bold' : 'normal'
+              }}
+            >
+              1. จัดการแปลงยาง
+            </button>
+            <button
+              onClick={() => setActiveTab('employees')}
+              style={{
+                padding: '12px 15px', borderRadius: '8px', border: 'none', textAlign: 'left', fontSize: '15px', cursor: 'pointer',
+                backgroundColor: activeTab === 'employees' ? '#2d6a4f' : 'transparent',
+                color: '#fff', fontWeight: activeTab === 'employees' ? 'bold' : 'normal'
+              }}
+            >
+              2. จัดการคนกรีดยาง
+            </button>
+            <button
+              onClick={() => setActiveTab('income')}
+              style={{
+                padding: '12px 15px', borderRadius: '8px', border: 'none', textAlign: 'left', fontSize: '15px', cursor: 'pointer',
+                backgroundColor: activeTab === 'income' ? '#2d6a4f' : 'transparent',
+                color: '#fff', fontWeight: activeTab === 'income' ? 'bold' : 'normal'
+              }}
+            >
+              3. สรุปรายได้แปลงยาง
+            </button>
+          </div>
         </div>
 
-        {/* 🚪 ปุ่มออกจากระบบ (ปรับให้ดูละมุน ไม่แดงจนโดดเกินไป) */}
-        <div style={{ marginTop: 'auto', padding: '24px' }}>
-          <button
-            onClick={handleLogout}
-            style={{
-              width: '100%', 
-              padding: '12px', 
-              backgroundColor: 'rgba(231, 76, 60, 0.1)', // พื้นหลังแดงโปร่งแสง
-              color: '#E74C3C', // ตัวหนังสือสีแดง
-              border: '1px solid rgba(231, 76, 60, 0.5)', 
-              borderRadius: '8px',
-              fontSize: '15px', 
-              fontWeight: 'bold', 
-              cursor: 'pointer',
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              transition: 'all 0.3s ease'
-            }}
-            onMouseOver={(e) => {
-              e.target.style.backgroundColor = '#E74C3C';
-              e.target.style.color = '#FFFFFF';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.backgroundColor = 'rgba(231, 76, 60, 0.1)';
-              e.target.style.color = '#E74C3C';
-            }}
-          >
-            <span style={{ marginRight: '8px' }}>🚪</span> ออกจากระบบ
-          </button>
-        </div>
+        <button
+          onClick={handleLogout}
+          style={{
+            padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: '#d90429',
+            color: '#fff', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center'
+          }}
+        >
+          ออกจากระบบ
+        </button>
       </div>
 
-      {/* 📄 พื้นที่แสดงเนื้อหาด้านขวา */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <Outlet />
+      {/* Main Content Area: โยน activeTab ไปให้หน้า Dashboard ผ่าน context */}
+      <div style={{ flex: 1, padding: '30px', overflowY: 'auto' }}>
+        <Outlet context={{ activeTab }} />
       </div>
       
     </div>

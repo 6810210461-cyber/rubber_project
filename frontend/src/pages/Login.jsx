@@ -34,7 +34,7 @@ function Login() {
 
                 // นำทางตามสิทธิ์
                 if (data.role === 'owner') navigate('/daily-record');
-                else if (data.role === 'garden_owner') navigate('/owner-dashboard');
+                else if (data.role === 'garden_owner') navigate('/garden-owner-dashboard');
                 else if (data.role === 'employee') navigate('/employee-dashboard');
                 else setError('สิทธิ์ของคุณไม่ถูกต้อง');
             } else {

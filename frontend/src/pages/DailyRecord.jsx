@@ -8,7 +8,6 @@ const DailyRecord = () => {
 
   // ⭐ 1. State สำหรับเก็บวันที่ (ค่าเริ่มต้นคือวันนี้)
   const [recordDate, setRecordDate] = useState(new Date().toISOString().split('T')[0]);
-  
   const [selectedAssignmentId, setSelectedAssignmentId] = useState('');
   const [selectedPlot, setSelectedPlot] = useState(null);
   const [weight, setWeight] = useState('');
